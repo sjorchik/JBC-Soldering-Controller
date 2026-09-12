@@ -25,7 +25,7 @@ void setupHeaterPwmAndAdcTimer(void)
 
 static void setHeaterDutyTicks(uint16_t us)
 {
-  if (us > MAX_HEATER_DUTY_TICKS) us = MAX_HEATER_DUTY_TICKS;
+  if (us > MAX_HEATER_DUTY_LIMITED) us = MAX_HEATER_DUTY_LIMITED;
   heaterTimer->setCaptureCompare(1, us, MICROSEC_COMPARE_FORMAT);
 }
 

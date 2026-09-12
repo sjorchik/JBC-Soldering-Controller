@@ -26,6 +26,8 @@ const int TFT_RST         = PA10;
 // перші читання "зависали" на застарілому значенні
 #define ADC_SAMPLE_WINDOW_US     2500UL
 #define MAX_HEATER_DUTY_TICKS    (PWM_PERIOD_US - ADC_SAMPLE_WINDOW_US)
+#define MAX_HEATER_DUTY_PERCENT   80  // Обмеження потужності нагріву (%)
+#define MAX_HEATER_DUTY_LIMITED   ((MAX_HEATER_DUTY_TICKS * MAX_HEATER_DUTY_PERCENT) / 100)
 //----------------Захист: обрив термопари------------------
 #define TC_OPEN_COUNTS_THRESHOLD 2500   // насичення при обриві (підтяг R6 тягне до VCC)
 #define TC_OPEN_DEBOUNCE         5
@@ -73,7 +75,7 @@ void SaveSettingsIfNeeded(void);
 void SaveProfilesIfNeeded(void);
 //----------------Structure Definitions----------------
 #define NVOL_EEPROM_ADDR 0
-#define NVOL_MAGIC 0x4A42
+#define NVOL_MAGIC 0x4A43
 struct NVOL {
   uint16_t magic;
   float    setpoint;

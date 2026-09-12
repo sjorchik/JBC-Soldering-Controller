@@ -110,7 +110,7 @@ void setup(void)
 
   myPID.SetMode(MANUAL);
   myPID.SetSampleTime(PWM_PERIOD_MS);
-  myPID.SetOutputLimits(0, MAX_HEATER_DUTY_TICKS);
+  myPID.SetOutputLimits(0, MAX_HEATER_DUTY_LIMITED);
   myPID.SetTunings(params.kP, params.kI, params.kD);
 
   UpdatePowerMeasurement();

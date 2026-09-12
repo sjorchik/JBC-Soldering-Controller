@@ -371,6 +371,9 @@ void ProcessSerialComm(void)
     int16_t voltage_mv_copy = status.adapter_voltage_mv;
     int16_t current_ma_copy = status.current_sense_ma;
     double  pid_output_copy = status.pid_output;
+    float   kP_copy         = params.kP;
+    float   kI_copy         = params.kI;
+    float   kD_copy         = params.kD;
     interrupts();
 
     int16_t setpoint_copy  = (int16_t)params.setpoint;
@@ -439,6 +442,13 @@ void ProcessSerialComm(void)
 
     Serial2.print(F("  FLT="));
     Serial2.print(fault_code);
+
+    Serial2.print(F("  kP="));
+    Serial2.print(kP_copy, 1);
+    Serial2.print(F("  kI="));
+    Serial2.print(kI_copy, 2);
+    Serial2.print(F("  kD="));
+    Serial2.print(kD_copy, 2);
 
     Serial2.println();
 
