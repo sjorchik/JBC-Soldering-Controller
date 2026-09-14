@@ -22,11 +22,10 @@ const int TFT_RST         = PA10;
 //----------------ШІМ нагрівача / вікно вибірки АЦП--------
 #define PWM_PERIOD_US            20000UL
 #define PWM_PERIOD_MS            (PWM_PERIOD_US / 1000UL)
-// 2500 мкс: конверсія 860SPS ≈ 1.16 мс + запас; при 1200 було впритул і
-// перші читання "зависали" на застарілому значенні
-#define ADC_SAMPLE_WINDOW_US     2500UL
+// 1250 мкс: конверсія 860SPS ≈ 1.16 мс + запас;
+#define ADC_SAMPLE_WINDOW_US     1250UL
 #define MAX_HEATER_DUTY_TICKS    (PWM_PERIOD_US - ADC_SAMPLE_WINDOW_US)
-#define MAX_HEATER_DUTY_PERCENT   80  // Обмеження потужності нагріву (%)
+#define MAX_HEATER_DUTY_PERCENT   70  // Обмеження потужності нагріву (%)
 #define MAX_HEATER_DUTY_LIMITED   ((MAX_HEATER_DUTY_TICKS * MAX_HEATER_DUTY_PERCENT) / 100)
 //----------------Захист: обрив термопари------------------
 #define TC_OPEN_COUNTS_THRESHOLD 2500   // насичення при обриві (підтяг R6 тягне до VCC)
@@ -75,7 +74,7 @@ void SaveSettingsIfNeeded(void);
 void SaveProfilesIfNeeded(void);
 //----------------Structure Definitions----------------
 #define NVOL_EEPROM_ADDR 0
-#define NVOL_MAGIC 0x4A43
+#define NVOL_MAGIC 0x4A42
 struct NVOL {
   uint16_t magic;
   float    setpoint;

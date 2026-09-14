@@ -29,7 +29,7 @@ void setup(void)
     params.kP = nvol.kP; params.kI = nvol.kI; params.kD = nvol.kD;
   } else {
     params.setpoint = 0;
-    params.kP = 30.0; params.kI = 1; params.kD = 0.36;
+    params.kP = 500.0; params.kI = 1; params.kD = 0.00;
   }
 
   // Профілі: свої дані або дефолт 200/250/300
