@@ -35,7 +35,7 @@ OperatingMode GetOperatingMode(void)
 {
   if (tc_open_fault)            return MODE_FAULT;    // аварія - найвищий пріоритет
   if (!params.heater_enabled)   return MODE_OFF;
-  if (digitalRead(CRADLE_SENSOR) == false) return MODE_STANDBY;
+  if (cradle_state_debounced)   return MODE_STANDBY;  // Використовуємо debounced стан
   return MODE_ON;
 }
 
@@ -59,4 +59,107 @@ void updateLEDStatus(void)
       break;
   }
   pixels.show();
+}
+
+// ==== Функції Пищалки ====
+void SetupBuzzer(void) {
+  pinMode(BUZZER_PIN, OUTPUT);
+  digitalWrite(BUZZER_PIN, LOW);
+}
+
+void BuzzerBeep(uint16_t freq, uint16_t duration_ms) {
+  if (!buzzer_enabled) return;
+  if (freq == 0) {
+    noTone(BUZZER_PIN);
+    return;
+  }
+  tone(BUZZER_PIN, freq, duration_ms);
+}
+
+void BuzzerBeepReachTemp(void) { BuzzerBeep(tone_freq_reach_temp, 200); }
+void BuzzerBeepCradleOn(void) { BuzzerBeep(tone_freq_cradle_on, 50); }
+void BuzzerBeepCradleOff(void) { BuzzerBeep(tone_freq_cradle_off, 50); }
+void BuzzerBeepEncRotate(void) { BuzzerBeep(tone_freq_enc_rotate, 30); }
+void BuzzerBeepEncPress(void) { BuzzerBeep(tone_freq_enc_press, 50); }
+void BuzzerBeepEncHold(void) { BuzzerBeep(tone_freq_enc_hold, 100); }
+
+// ==== Звуки помилок ====
+void BuzzerBeepFault(void) { 
+  // Використовуємо тривалість без таймауту (керуємо вручну через state machine)
+  if (!buzzer_enabled || tone_freq_fault == 0) return;
+  tone(BUZZER_PIN, tone_freq_fault);
+}
+
+void ProcessFaultSounds(void) {
+  // Станова машина для послідовності писків помилок
+  // Стани: 0=IDLE, 1=BEEP_ON, 2=BEEP_OFF (між писками), 3=CYCLE_PAUSE
+  static uint8_t fault_seq_state = 0;
+  static uint8_t fault_beep_counter = 0;
+  static uint32_t fault_last_change = 0;
+  static byte last_fault_code = 0;
+  
+  if (fault_code > 0 && fault_code <= 4) {
+    // Якщо помилка змінилася - скидаємо послідовність
+    if (last_fault_code != fault_code) {
+      fault_seq_state = 0;
+      fault_last_change = millis();
+      last_fault_code = fault_code;
+    }
+    
+    uint32_t now = millis();
+    
+    switch (fault_seq_state) {
+      case 0: // IDLE - починаємо цикл писків
+        if (buzzer_enabled && tone_freq_fault > 0) {
+          BuzzerBeepFault();
+          fault_beep_counter = 1;
+          fault_seq_state = 1;
+          fault_last_change = now;
+        } else {
+          // Якщо звук вимкнений - просто пропускаємо
+          fault_seq_state = 3;
+          fault_last_change = now;
+        }
+        break;
+        
+      case 1: // BEEP_ON - триває писк (200мс)
+        if (now - fault_last_change >= 200) {
+          noTone(BUZZER_PIN);
+          if (fault_beep_counter >= fault_code) {
+            // Всі писки зроблені - пауза перед повтором
+            fault_seq_state = 3;
+          } else {
+            // Ще будуть писки - пауза між ними
+            fault_seq_state = 2;
+          }
+          fault_last_change = now;
+        }
+        break;
+        
+      case 2: // BEEP_OFF - пауза між писками (200мс)
+        if (now - fault_last_change >= 200) {
+          fault_beep_counter++;
+          if (buzzer_enabled && tone_freq_fault > 0) {
+            BuzzerBeepFault();
+          }
+          fault_seq_state = 1;
+          fault_last_change = now;
+        }
+        break;
+        
+      case 3: // CYCLE_PAUSE - пауза між циклами (1500мс)
+        if (now - fault_last_change >= 1500) {
+          fault_seq_state = 0; // Починаємо новий цикл
+        }
+        break;
+    }
+  } else {
+    // Немає помилки - скидаємо стан та вимикаємо звук
+    if (fault_seq_state != 0 || last_fault_code != 0) {
+      noTone(BUZZER_PIN);
+      fault_seq_state = 0;
+      fault_beep_counter = 0;
+      last_fault_code = 0;
+    }
+  }
 }

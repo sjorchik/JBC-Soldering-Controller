@@ -20,6 +20,8 @@
    HEATER=0
    STATUS
    SAVE
+   SOUND=ON|OFF|1|0
+   TONE=TYPE:FREQ
 */
 
 #define SERIAL_COMM_PERIOD_MS 250
@@ -68,6 +70,9 @@ void ProcessTextCommand(String cmd)
     Serial2.println(F("  HEATER=ON|OFF|1|0"));
     Serial2.println(F("  STATUS"));
     Serial2.println(F("  SAVE"));
+    Serial2.println(F("  SOUND=ON|OFF|1|0"));
+    Serial2.println(F("  TONE=TYPE:FREQ (use FREQ=0 to disable)"));
+    Serial2.println(F("    Types: TEMP, CRADLE_ON, CRADLE_OFF, ENC_ROT, ENC_PRESS, ENC_HOLD, FAULT"));
     return;
   }
 
@@ -249,6 +254,63 @@ void ProcessTextCommand(String cmd)
     return;
   }
 
+  // ================= SOUND= =================
+  if (cmd.startsWith("SOUND="))
+  {
+    String value = GetCommandValue(cmd, 6);
+    value.toUpperCase();
+    if (value == "ON" || value == "1") {
+      buzzer_enabled = true;
+      Serial2.println(F("OK SOUND=ON"));
+    } else if (value == "OFF" || value == "0") {
+      buzzer_enabled = false;
+      noTone(BUZZER_PIN);
+      Serial2.println(F("OK SOUND=OFF"));
+    } else {
+      Serial2.println(F("ERR Usage: SOUND=ON|OFF|1|0"));
+    }
+    return;
+  }
+
+  // ================= TONE= =================
+  if (cmd.startsWith("TONE="))
+  {
+    String value = GetCommandValue(cmd, 5);
+    int colon_idx = value.indexOf(':');
+    if (colon_idx == -1) {
+      Serial2.println(F("ERR Usage: TONE=TYPE:FREQ (e.g. TONE=TEMP:2000, use FREQ=0 to disable)"));
+      return;
+    }
+    String type = value.substring(0, colon_idx);
+    type.trim();
+    type.toUpperCase();
+    String freq_str = value.substring(colon_idx + 1);
+    freq_str.trim();
+    uint16_t freq = (uint16_t)freq_str.toInt();
+
+    if (freq > 10000) {
+      Serial2.println(F("ERR Freq must be 0..10000 Hz (0=disabled)"));
+      return;
+    }
+
+    if (type == "TEMP") tone_freq_reach_temp = freq;
+    else if (type == "CRADLE_ON") tone_freq_cradle_on = freq;
+    else if (type == "CRADLE_OFF") tone_freq_cradle_off = freq;
+    else if (type == "ENC_ROT") tone_freq_enc_rotate = freq;
+    else if (type == "ENC_PRESS") tone_freq_enc_press = freq;
+    else if (type == "ENC_HOLD") tone_freq_enc_hold = freq;
+    else if (type == "FAULT") tone_freq_fault = freq;  // Додано
+    else {
+      Serial2.println(F("ERR Unknown tone type. Use TEMP, CRADLE_ON, CRADLE_OFF, ENC_ROT, ENC_PRESS, ENC_HOLD, FAULT"));
+      return;
+    }
+    Serial2.print(F("OK TONE="));
+    Serial2.print(type);
+    Serial2.print(F(":"));
+    Serial2.println(freq);
+    return;
+  }
+
   // ================= STATUS =================
   if (cmd == "STATUS")
   {
@@ -298,7 +360,10 @@ void ProcessTextCommand(String cmd)
     }
 
     Serial2.print(F(" FLT="));
-    Serial2.println(fault_code);
+    Serial2.print(fault_code);
+
+    Serial2.print(F(" BUZZER="));
+    Serial2.println(buzzer_enabled ? F("ON") : F("OFF"));
 
     return;
   }
@@ -442,6 +507,9 @@ void ProcessSerialComm(void)
 
     Serial2.print(F("  FLT="));
     Serial2.print(fault_code);
+
+    Serial2.print(F("  BUZZER="));
+    Serial2.print(buzzer_enabled ? F("ON") : F("OFF"));
 
     Serial2.print(F("  kP="));
     Serial2.print(kP_copy, 1);

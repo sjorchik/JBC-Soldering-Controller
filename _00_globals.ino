@@ -19,6 +19,7 @@ const int ENC_BUTTON      = PB5;
 const int TFT_CS          = PA8;
 const int TFT_DC          = PA9;
 const int TFT_RST         = PA10;
+const int BUZZER_PIN      = PB8; // Додано: пін для звукової пищалки (TIM4_CH3)
 //----------------ШІМ нагрівача / вікно вибірки АЦП--------
 #define PWM_PERIOD_US            20000UL
 #define PWM_PERIOD_MS            (PWM_PERIOD_US / 1000UL)
@@ -72,6 +73,15 @@ int32_t EncoderRead(void);
 void EncoderWrite(int32_t new_pos);
 void SaveSettingsIfNeeded(void);
 void SaveProfilesIfNeeded(void);
+void SetupBuzzer(void);
+void BuzzerBeepReachTemp(void);
+void BuzzerBeepCradleOn(void);
+void BuzzerBeepCradleOff(void);
+void BuzzerBeepEncRotate(void);
+void BuzzerBeepEncPress(void);
+void BuzzerBeepEncHold(void);
+void BuzzerBeepFault(void);
+void ProcessFaultSounds(void);
 //----------------Structure Definitions----------------
 #define NVOL_EEPROM_ADDR 0
 #define NVOL_MAGIC 0x4A42
@@ -108,6 +118,16 @@ volatile int32_t encoder_position = 0;
 volatile bool tc_open_fault = false;   // latch до скидання кнопкою/ребуту
 volatile byte fault_code   = 0;        // 1=обрив TC, 2=перегрів, 3=runaway, 4=не росте
 volatile bool led_update_pending = false; // ISR просить loop оновити LED
+volatile bool cradle_state_debounced = false; // Додано: підтверджений стан підставки
+//----------------Buzzer Settings-----------------
+bool buzzer_enabled = true;
+uint16_t tone_freq_reach_temp = 2000;
+uint16_t tone_freq_cradle_on = 1500;
+uint16_t tone_freq_cradle_off = 1000;
+uint16_t tone_freq_enc_rotate = 1200;
+uint16_t tone_freq_enc_press = 800;
+uint16_t tone_freq_enc_hold = 2500;
+uint16_t tone_freq_fault = 1000;       // Додано: тон для помилок
 //----------------INA219-------------
 #define INA219_SHUNT_OHMS   0.0056f
 #define MAX_DISPLAY_POWER_W   150

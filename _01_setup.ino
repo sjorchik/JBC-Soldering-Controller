@@ -116,4 +116,7 @@ void setup(void)
   UpdatePowerMeasurement();
 
   IWatchdog.begin(8000000UL); // 8 с: якщо loop зависне - скидання, нагрівач OFF
+  
+  // Ініціалізація пищалки
+  SetupBuzzer();
 }

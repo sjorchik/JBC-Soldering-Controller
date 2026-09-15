@@ -19,31 +19,68 @@ void loop(void)
   static bool btn_pending_switch = false;
   static int16_t knob_pos_last = 0;
   static bool first_loop = true;
+  
+  // ==== State machine для підставки ====
+  static bool cradle_state = false;
+  static bool cradle_raw_prev = false;
+  static uint32_t cradle_debounce_time = 0;
+
+  // ==== Досягнення температури ====
+  static bool temp_reach_notified = false;
+  static float last_setpoint_for_reach = -100.0;
+  static bool temp_approach_from_below = true;
+  static uint32_t temp_reach_filter_since = 0;
+  static uint32_t temp_reset_filter_since = 0;
 
   bool btn_now = (digitalRead(ENC_BUTTON) == false);
 
   if (first_loop) {
     knob_pos_last = EncoderRead();
+    cradle_state = (digitalRead(CRADLE_SENSOR) == false);
+    cradle_raw_prev = cradle_state;
+    cradle_debounce_time = millis();
+    cradle_state_debounced = cradle_state;
     first_loop = false;
   }
 
+  // ==== State machine для підставки з debounce ====
+  bool cradle_raw = (digitalRead(CRADLE_SENSOR) == false);
+  
+  if (cradle_raw != cradle_raw_prev) {
+    cradle_raw_prev = cradle_raw;
+    cradle_debounce_time = millis();
+  }
+  
+  if (cradle_raw != cradle_state && (millis() - cradle_debounce_time > 50)) {
+    cradle_state = cradle_raw;
+    cradle_state_debounced = cradle_state;
+    
+    if (cradle_state) {
+      BuzzerBeepCradleOn();
+    } else {
+      BuzzerBeepCradleOff();
+    }
+  }
+
+  bool in_cradle = cradle_state;
+
   if (btn_now && !btn_prev)
   {
+    BuzzerBeepEncPress();
     btn_down_since = millis();
     btn_long_fired = false;
     btn_edit_mode = false;
     btn_pending_switch = true;
   }
 
-  // УТРИМАННЯ без обертання -> наступний профіль
   if (btn_now && !btn_long_fired && btn_pending_switch &&
       (millis() - btn_down_since >= PROFILE_LONG_PRESS_MS))
   {
     btn_long_fired = true;
     btn_edit_mode = true;
+    BuzzerBeepEncHold();
 
     prof.active = (prof.active + 1) % NUM_PROFILES;
-
     params.setpoint = prof.temp[prof.active];
 
     EncoderWrite((int32_t)params.setpoint);
@@ -92,6 +129,12 @@ void loop(void)
 
   if (delta != 0)
   {
+    static uint32_t last_enc_rotate_beep = 0;
+    if (millis() - last_enc_rotate_beep > 30) {
+      BuzzerBeepEncRotate();
+      last_enc_rotate_beep = millis();
+    }
+
     if (btn_now && !btn_long_fired)
     {
       btn_long_fired = true;
@@ -129,9 +172,7 @@ void loop(void)
 
   knob_pos_last = status.encoder_pos;
 
-  //==== Узгодження режиму (бажання + підставка + аварія) ====
-  bool in_cradle = (digitalRead(CRADLE_SENSOR) == false);
-
+  //==== Узгодження режиму ====
   byte desired_pid_mode = (params.heater_enabled && !in_cradle && !tc_open_fault)
                           ? AUTOMATIC : MANUAL;
 
@@ -154,14 +195,12 @@ void loop(void)
 
     if (tip_now > HARD_MAX_TEMP_C) { tc_open_fault = true; fault_code = 2; }
 
-    // ВИПРАВЛЕНО: Гнучка перевірка динаміки температури при охолодженні
     static uint32_t ov_since = 0;
     static uint32_t temp_check_time = 0;
     static double temp_at_check_start = 0;
     static double temp_at_prev_check = 0;
     static float last_setpoint_for_ov = params.setpoint;
     
-    // Якщо setpoint змінився - скидаємо таймер перевірки
     if (abs(params.setpoint - last_setpoint_for_ov) > 1.0) {
       ov_since = 0;
       temp_check_time = 0;
@@ -180,25 +219,17 @@ void loop(void)
         temp_check_time = millis();
       }
       else if (millis() - ov_since > OVERSHOOT_TIME_MS) {
-        // Перевіряємо динаміку температури кожні 5 секунд
         bool temp_is_dropping = false;
         if (temp_check_time > 0 && millis() - temp_check_time >= 5000) {
-          // Порівнюємо з попередньою перевіркою
           double temp_diff = temp_at_prev_check - tip_now;
-          
-          // Якщо температура впала хоча б на 1°C за 5 секунд - це охолодження
           if (temp_diff >= 1.0) {
             temp_is_dropping = true;
           }
-          
-          // Оновлюємо для наступної перевірки
           temp_at_prev_check = tip_now;
           temp_check_time = millis();
         }
         
-        // Активуємо помилку тільки якщо температура НЕ падає взагалі
         if (!temp_is_dropping && millis() - ov_since > 15000) {
-          // Додатково чекаємо 15 секунд перед помилкою
           tc_open_fault = true; 
           fault_code = 3;
         }
@@ -238,10 +269,80 @@ void loop(void)
     updateLEDStatus();
   }
 
+  //==== Досягнення заданої температури ====
+  if (abs(params.setpoint - last_setpoint_for_reach) > 1.0) {
+    temp_reach_notified = false;
+    last_setpoint_for_reach = params.setpoint;
+    temp_reach_filter_since = 0;
+    temp_reset_filter_since = 0;
+    
+    if (status.tip_temperature_c < params.setpoint) {
+      temp_approach_from_below = true;
+    } else {
+      temp_approach_from_below = false;
+    }
+  }
+
+  bool is_active = (params.heater_enabled && !cradle_state && !tc_open_fault);
+
+  if (params.setpoint > 10.0 && is_active) {
+    if (!temp_reach_notified) {
+      bool temp_reached = false;
+      
+      if (temp_approach_from_below) {
+        temp_reached = (status.tip_temperature_c >= params.setpoint - 2.0);
+      } else {
+        temp_reached = (status.tip_temperature_c <= params.setpoint + 2.0);
+      }
+      
+      if (temp_reached) {
+        if (temp_reach_filter_since == 0) {
+          temp_reach_filter_since = millis();
+        } else if (millis() - temp_reach_filter_since > 200) {
+          BuzzerBeepReachTemp();
+          temp_reach_notified = true;
+          temp_reach_filter_since = 0;
+        }
+      } else {
+        temp_reach_filter_since = 0;
+      }
+    }
+    
+    bool should_reset = false;
+    if (temp_approach_from_below) {
+      should_reset = (status.tip_temperature_c < params.setpoint - 15.0);
+    } else {
+      should_reset = (status.tip_temperature_c > params.setpoint + 15.0);
+    }
+    
+    if (should_reset) {
+      if (temp_reset_filter_since == 0) {
+        temp_reset_filter_since = millis();
+      } else if (millis() - temp_reset_filter_since > 500) {
+        temp_reach_notified = false;
+        temp_reset_filter_since = 0;
+        temp_approach_from_below = (status.tip_temperature_c < params.setpoint);
+      }
+    } else {
+      temp_reset_filter_since = 0;
+    }
+  } else {
+    if (temp_reset_filter_since == 0) {
+      temp_reset_filter_since = millis();
+    } else if (millis() - temp_reset_filter_since > 500) {
+      temp_reach_notified = false;
+      temp_reset_filter_since = 0;
+    }
+  }
+
+  //==== Звукова індикація помилок ====
+  ProcessFaultSounds();
+
   updateDisplay(update_display_now);
   SaveSettingsIfNeeded();
   SaveProfilesIfNeeded();
-}
+
+} // Кінець функції loop()
 
 void SaveSettingsIfNeeded(void)
 {
