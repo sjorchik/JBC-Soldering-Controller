@@ -5,7 +5,7 @@
 #include <EEPROM.h>
 #include <Adafruit_NeoPixel.h>
 #include <Adafruit_GFX.h>
-#include <Adafruit_ST7735.h>
+#include "src/Adafruit-ST7735-Library-master/Adafruit_ST7735.h"
 #include "FreeSans6pt7b.h"
 #include <Fonts/FreeSans9pt7b.h>
 #include "DSEG7Classic_Bold12pt7b.h"

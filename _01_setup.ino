@@ -51,6 +51,9 @@ void setup(void)
   EncoderWrite((int32_t)params.setpoint);
 
   SPI_2.begin();
+  
+  pinMode(TFT_RST, OUTPUT);
+  digitalWrite(TFT_RST, HIGH);
   display.initR(INITR_BLACKTAB);
   display.setRotation(1);
   display.fillScreen(ST7735_BLACK);
@@ -67,10 +70,10 @@ void setup(void)
 
   {
     uint16_t ina219_config = INA219_CONFIG_BVOLTAGERANGE_32V |
-      INA219_CONFIG_GAIN_8_320MV |
-      INA219_CONFIG_BADCRES_12BIT_128S_69MS |
-      INA219_CONFIG_SADCRES_12BIT_128S_69MS |
-      INA219_CONFIG_MODE_SANDBVOLT_CONTINUOUS;
+                             INA219_CONFIG_GAIN_8_320MV |
+                             INA219_CONFIG_BADCRES_12BIT_128S_69MS |
+                             INA219_CONFIG_SADCRES_12BIT_128S_69MS |
+                             INA219_CONFIG_MODE_SANDBVOLT_CONTINUOUS;
 
     Wire.beginTransmission(0x40);
     Wire.write((uint8_t)0x00);
@@ -116,7 +119,7 @@ void setup(void)
   UpdatePowerMeasurement();
 
   IWatchdog.begin(8000000UL); // 8 с: якщо loop зависне - скидання, нагрівач OFF
-  
+
   // Ініціалізація пищалки
   SetupBuzzer();
 }

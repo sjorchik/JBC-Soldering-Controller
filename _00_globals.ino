@@ -139,7 +139,7 @@ Adafruit_INA219 ina219;
 #define LED_COLOR_ON          0, 255,   0   // зелений - гріє; червоний ЛИШЕ для FAULT
 //----------------Globals Objects----------------------
 SPIClass SPI_2(PB15, PB14, PB13);
-Adafruit_ST7735 display(&SPI_2, TFT_CS, TFT_DC, TFT_RST);
+Adafruit_ST7735 display(&SPI_2, TFT_CS, TFT_DC, -1);
 HardwareSerial Serial2(PA3, PA2);
 Adafruit_NeoPixel pixels = Adafruit_NeoPixel(1, WS2812_DATA, NEO_GRB + NEO_KHZ800);
 PID myPID(const_cast<double*>(&status.tip_temperature_c),
